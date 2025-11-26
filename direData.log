@@ -1,0 +1,29 @@
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+
+> Task :pathRun
+unknown top level message of kind DOTA_S2/18. Please report this in the corresponding issue: https://github.com/skadistats/clarity/issues/58
+[HERO] PlayerID=0  Entity=CDOTA_Unit_Hero_Gyrocopter  entIndex=1315
+>>> Tracking hero CDOTA_Unit_Hero_Gyrocopter (playerSlot=0, PlayerID=0, entIndex=1315)
+[HERO] PlayerID=2  Entity=CDOTA_Unit_Hero_Furion  entIndex=1371
+[HERO] PlayerID=10  Entity=CDOTA_Unit_Hero_Leshrac  entIndex=345
+[HERO] PlayerID=12  Entity=CDOTA_Unit_Hero_Axe  entIndex=396
+[HERO] PlayerID=14  Entity=CDOTA_Unit_Hero_DragonKnight  entIndex=453
+[HERO] PlayerID=4  Entity=CDOTA_Unit_Hero_Tidehunter  entIndex=1424
+[HERO] PlayerID=6  Entity=CDOTA_Unit_Hero_Snapfire  entIndex=1475
+[HERO] PlayerID=8  Entity=CDOTA_Unit_Hero_Tusk  entIndex=1529
+[HERO] PlayerID=16  Entity=CDOTA_Unit_Hero_Pudge  entIndex=513
+[HERO] PlayerID=18  Entity=CDOTA_Unit_Hero_Phoenix  entIndex=885
+[HERO] PlayerID=18  Entity=CDOTA_Unit_Hero_Phoenix  entIndex=1586
+[HERO] PlayerID=18  Entity=CDOTA_Unit_Hero_Phoenix  entIndex=1852
+[HERO] PlayerID=2  Entity=CDOTA_Unit_Hero_Furion  entIndex=2758
+[HERO] PlayerID=2  Entity=CDOTA_Unit_Hero_Furion  entIndex=2814
+[HERO] PlayerID=0  Entity=CDOTA_Unit_Hero_Gyrocopter  entIndex=1541
+>>> Tracking hero CDOTA_Unit_Hero_Gyrocopter (playerSlot=0, PlayerID=0, entIndex=1541)
+[HERO] PlayerID=0  Entity=CDOTA_Unit_Hero_Gyrocopter  entIndex=2704
+>>> Tracking hero CDOTA_Unit_Hero_Gyrocopter (playerSlot=0, PlayerID=0, entIndex=2704)
+Saved 4838 samples to C:\Dev\dotagod\PathFinding\clarity-examples\path_hero0.json
+
+BUILD SUCCESSFUL in 9s
+3 actionable tasks: 1 executed, 2 up-to-date
