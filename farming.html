@@ -14,31 +14,87 @@
         align-items: center;
         gap: 8px;
       }
+
+      h1 {
+        margin-top: 8px;
+        margin-bottom: 4px;
+        font-size: 20px;
+      }
+
       #controls {
         margin-top: 8px;
         display: flex;
         align-items: center;
         gap: 8px;
       }
+
       canvas {
         border: 1px solid #444;
         image-rendering: crisp-edges;
       }
+
       #stats {
         font-size: 14px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+      }
+
+      /* Default LH style (yellow) */
+      #stats .lh-highlight {
+        font-size: 26px;
+        font-weight: 700;
+        color: #ffeb3b;
+        text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+        letter-spacing: 1px;
+      }
+
+      #stats .gold-line {
+        margin-top: -4px;
+        font-size: 16px;
+      }
+
+      button {
+        cursor: pointer;
+        padding: 4px 8px;
+        background: #333;
+        color: #eee;
+        border: 1px solid #555;
+        border-radius: 4px;
+      }
+
+      .speed-label {
+        padding: 4px 12px;
+        background: #222;
+        border: 1px solid #444;
+        border-radius: 4px;
+        font-weight: bold;
+        min-width: 36px;
+        text-align: center;
       }
     </style>
   </head>
+
   <body>
     <h1>Path viewer</h1>
+
     <canvas id="mapCanvas"></canvas>
+
     <div id="controls">
-        <button id="playPauseBtn">Play</button>
-        <input id="timeSlider" type="range" min="0" max="1" step="0.001" value="0" />
-        <span id="timeLabel">00:00</span>
-        <button id="speedBtn">1x</button>
+      <button id="playPauseBtn">Play</button>
+
+      <input id="timeSlider" type="range" min="0" max="1" step="0.001" value="0" />
+
+      <span id="timeLabel">00:00</span>
+
+      <button id="speedMinusBtn">−</button>
+      <span id="speedBtn" class="speed-label">1x</span>
+      <button id="speedPlusBtn">+</button>
     </div>
+
     <div id="stats"></div>
+
     <script src="viewer.js"></script>
   </body>
 </html>
