@@ -34,6 +34,21 @@ const PATH_COLORS = ['#00ff99', '#00bcd4', '#ffeb3b', '#ff9800', '#f44336', '#9c
 // Dota starts at -2:00 relative to our t=0
 const GAME_START_OFFSET_SECONDS = -120;
 
+// Dota map bounds based on respawns (inner square + proportional padding)
+const BASE_MIN = 9684;   // Radiant respawn inner corner
+const BASE_MAX = 23034;  // Dire respawn inner corner
+const MAP_SPAN = BASE_MAX - BASE_MIN;
+
+// A bit stronger padding so the respawns ne soient pas collés aux bords
+const PADDING_RATIO = 0.05;          // 5% of span
+const PADDING = MAP_SPAN * PADDING_RATIO;
+
+const MAP_MIN = BASE_MIN - PADDING;  // extended bottom-left
+const MAP_MAX = BASE_MAX + PADDING;  // extended top-right;
+
+// Canvas margin so path is not touching map border
+const CANVAS_MARGIN = 20;
+
 // Format seconds (with offset) -> "[-]mm:ss"
 function formatGameTime(t) {
   const gameSeconds = t + GAME_START_OFFSET_SECONDS; // t=0 => -120
@@ -64,13 +79,20 @@ mapImage.onload = () => {
       minT = samples[0].t;
       maxT = samples[samples.length - 1].t;
 
+      // Still compute real bounds for debugging
       minX = Math.min(...samples.map((s) => s.x));
       maxX = Math.max(...samples.map((s) => s.x));
       minY = Math.min(...samples.map((s) => s.y));
       maxY = Math.max(...samples.map((s) => s.y));
 
+      console.log('Bounds from samples:', { minX, maxX, minY, maxY });
+      console.log('Using fixed map bounds:', { MAP_MIN, MAP_MAX });
+
+      // Canvas = size of the map image (600x600 dans votre cas)
       canvas.width = mapImage.width;
       canvas.height = mapImage.height;
+
+      console.log('width:', canvas.width, 'height:', canvas.height);
 
       currentT = minT;
       timeSlider.min = 0;
@@ -87,19 +109,28 @@ mapImage.onload = () => {
     });
 };
 
-// Convert world coordinates to canvas coordinates
+// Prevent going out of canvas
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+// Convert world coordinates to canvas coordinates (using fixed Dota map bounds + canvas margin)
 function worldToCanvas(x, y) {
-  const margin = 20;
-  const w = canvas.width - margin * 2;
-  const h = canvas.height - margin * 2;
+  const range = MAP_MAX - MAP_MIN || 1;
 
-  const nx = (x - minX) / (maxX - minX || 1);
-  const ny = (y - minY) / (maxY - minY || 1);
+  const nx = (x - MAP_MIN) / range;
+  const ny = (y - MAP_MIN) / range; // same range to keep it square
 
-  const cx = margin + nx * w;
-  const cy = margin + (1 - ny) * h; // invert Y axis
+  const usableWidth = canvas.width - CANVAS_MARGIN * 2;
+  const usableHeight = canvas.height - CANVAS_MARGIN * 2;
 
-  return { x: cx, y: cy };
+  const cx = CANVAS_MARGIN + nx * usableWidth;
+  const cy = CANVAS_MARGIN + (1 - ny) * usableHeight; // invert Y axis
+
+  return {
+    x: clamp(cx, CANVAS_MARGIN, canvas.width - CANVAS_MARGIN),
+    y: clamp(cy, CANVAS_MARGIN, canvas.height - CANVAS_MARGIN)
+  };
 }
 
 // Interpolate sample for given time t
