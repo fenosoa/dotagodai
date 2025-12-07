@@ -12,6 +12,7 @@ const speedPlusBtn = document.getElementById('speedPlusBtn');
 const speedBtn = document.getElementById('speedBtn');
 
 const statsDiv = document.getElementById('stats');
+const titleHeader = document.getElementById('titleHeader');
 
 const mapImage = new Image();
 
@@ -23,7 +24,7 @@ let isPlaying = false;
 let currentT = 0;
 let lastFrameTime = null;
 
-// Playback speed list
+// Playback speeds (note: 16x et 32x inclus)
 const SPEEDS = [0.5, 1, 1.5, 2, 4, 8, 16, 32];
 let currentSpeedIndex = 1;
 let playbackSpeed = SPEEDS[currentSpeedIndex];
@@ -32,16 +33,15 @@ function updateSpeedLabel() {
   speedBtn.textContent = `${playbackSpeed}x`;
 }
 
-// Path colors
+// Path colors (par minute)
 const PATH_COLORS = ['#00ff99', '#00bcd4', '#ffeb3b', '#ff9800', '#f44336', '#9c27b0'];
 
 const GAME_START_OFFSET_SECONDS = -120;
 
-// Map bounds with padding
+// Map bounds with padding basé sur les respawns
 const BASE_MIN = 9684;
 const BASE_MAX = 23034;
 const MAP_SPAN = BASE_MAX - BASE_MIN;
-
 const PADDING = MAP_SPAN * 0.05;
 
 const MAP_MIN = BASE_MIN - PADDING;
@@ -49,7 +49,7 @@ const MAP_MAX = BASE_MAX + PADDING;
 
 const CANVAS_MARGIN = 20;
 
-// Persistent LH color (starts yellow, then stays green/blue after changes)
+// LH color persistant (jaune au début)
 let lastLhColor = '#ffeb3b';
 
 function formatGameTime(t) {
@@ -62,10 +62,15 @@ function formatGameTime(t) {
   return `${sign}${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
+// Map + fichier du path
 mapImage.src = 'dota2_map.png';
 
+const pathFile = 'path_jug_lh_8559667418.json';
+const fileNameForTitle = pathFile.replace(/\.json$/i, '');
+titleHeader.textContent = `Path viewer : ${fileNameForTitle}`;
+
 mapImage.onload = () => {
-  fetch('gyro_ame_8563191677.json')
+  fetch(pathFile)
     .then((res) => res.json())
     .then((data) => {
       samples = data;
@@ -183,28 +188,40 @@ function draw(t) {
 
     const display = lastSample || s;
 
-    // Compute gold diffs between last two discrete samples
+    // LH color (persistant) selon dernier gain
     if (lastSample && prevSample) {
       const creepDiff = lastSample.creepGold - prevSample.creepGold;
       const neutralDiff = lastSample.neutralGold - prevSample.neutralGold;
 
       if (creepDiff > 0) {
-        // Lane creep gain -> green, persistent
-        lastLhColor = '#8cff66';
+        lastLhColor = '#8cff66'; // lane creeps
       } else if (neutralDiff > 0) {
-        // Neutral gain -> blue, persistent
-        lastLhColor = '#66d9ff';
+        lastLhColor = '#66d9ff'; // neutrals
       }
-      // Si aucun gain, on ne touche pas à lastLhColor (il reste ce qu'il était)
+    }
+
+    // Pourcentages
+    const creep = display.creepGold || 0;
+    const neutral = display.neutralGold || 0;
+    const hero = display.heroKillGold || 0;
+    const totalGold = creep + neutral + hero;
+
+    let creepPct = 0;
+    let neutralPct = 0;
+    let heroPct = 0;
+
+    if (totalGold > 0) {
+      creepPct = (creep / totalGold) * 100;
+      neutralPct = (neutral / totalGold) * 100;
+      heroPct = (hero / totalGold) * 100;
     }
 
     statsDiv.innerHTML =
       `<div class="lh-highlight" style="color:${lastLhColor};">LH: ${display.lastHits}</div>` +
-      `<div class="gold-line">` +
-      `Creep gold: ${display.creepGold} | ` +
-      `Neutral gold: ${display.neutralGold} | ` +
-      `Hero gold: ${display.heroKillGold}` +
-      `</div>`;
+      `<div class="gold-total">Total gold: ${totalGold}</div>` +
+      `<div class="gold-row"><span class="gold-label">Lane creeps</span><span class="gold-value">${creepPct.toFixed(1)}%</span></div>` +
+      `<div class="gold-row"><span class="gold-label">Neutrals</span><span class="gold-value">${neutralPct.toFixed(1)}%</span></div>` +
+      `<div class="gold-row"><span class="gold-label">Hero kills</span><span class="gold-value">${heroPct.toFixed(1)}%</span></div>`;
   }
 }
 
