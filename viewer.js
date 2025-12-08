@@ -65,7 +65,7 @@ function formatGameTime(t) {
 // Map + fichier du path
 mapImage.src = 'dota2_map.png';
 
-const pathFile = 'path_jug_lh_8559667418.json';
+const pathFile = 'jug_ame.json';
 const fileNameForTitle = pathFile.replace(/\.json$/i, '');
 titleHeader.textContent = `Path viewer : ${fileNameForTitle}`;
 
