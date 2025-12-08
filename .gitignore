@@ -6,3 +6,4 @@
 /flattables_*
 /baselines
 .dem
+node_modules
