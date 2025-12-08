@@ -274,34 +274,196 @@ function renderFiles() {
     });
 }
 
-// Handle file click
+// Handle file click - Open modal instead of downloading
 function handleFileClick(fileId) {
     const file = allFiles.find(f => f.id === fileId);
     if (!file) return;
 
-    // Create a temporary download link
-    const url = URL.createObjectURL(file.file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-
-    // Show info
-    const message = `
-    <strong>${file.title}</strong><br>
-    Fichier: ${file.name}<br>
-    Taille: ${file.sizeFormatted}<br>
-    <br>
-    <em>Cliquez sur le fichier à nouveau pour télécharger ou ouvrir avec une application</em>
-  `;
-
-    showNotification(message, 'info', 5000);
-
-    // Trigger download
-    a.click();
-
-    // Cleanup
-    URL.revokeObjectURL(url);
+    openMatchModal(file);
 }
+
+// Modal elements
+const matchModal = document.getElementById('matchModal');
+const modalOverlay = document.getElementById('modalOverlay');
+const modalClose = document.getElementById('modalClose');
+const modalTitle = document.getElementById('modalTitle');
+const matchFileName = document.getElementById('matchFileName');
+const matchFileSize = document.getElementById('matchFileSize');
+const matchFilePath = document.getElementById('matchFilePath');
+const parseBtn = document.getElementById('parseBtn');
+const parsingStatus = document.getElementById('parsingStatus');
+const parseResults = document.getElementById('parseResults');
+const scanDotaBtn = document.getElementById('scanDotaBtn');
+
+let currentFile = null;
+
+// Open match modal
+function openMatchModal(file) {
+    currentFile = file;
+
+    // Update modal content
+    modalTitle.textContent = file.title;
+    matchFileName.textContent = file.name;
+    matchFileSize.textContent = file.sizeFormatted;
+    matchFilePath.textContent = file.file.webkitRelativePath || file.name;
+
+    // Reset results
+    parsingStatus.style.display = 'none';
+    parseResults.style.display = 'none';
+    parseBtn.disabled = false;
+
+    // Show modal
+    matchModal.style.display = 'flex';
+}
+
+// Close match modal
+function closeMatchModal() {
+    matchModal.style.display = 'none';
+    currentFile = null;
+}
+
+// Parse replay
+async function parseReplay() {
+    if (!currentFile) return;
+
+    parseBtn.disabled = true;
+    parsingStatus.style.display = 'flex';
+    parseResults.style.display = 'none';
+
+    try {
+        // Get the file path
+        const filePath = currentFile.file.path || currentFile.file.webkitRelativePath || currentFile.name;
+
+        //  Call backend to parse
+        // For now, we'll simulate parsing and show dummy data
+        // TODO: Integrate with your Gradle parser
+
+        await simulateParsing();
+
+        // Show results
+        parsingStatus.style.display = 'none';
+        parseResults.style.display = 'block';
+
+        // Display parsed data
+        displayParseResults({
+            map: {
+                duration: '45:32',
+                mode: 'All Pick',
+                winner: 'Radiant'
+            },
+            players: [
+                { id: 0, name: 'Player 1', hero: 'AM', team: 'radiant', kills: 12, deaths: 3, assists: 8, gpm: 650, xpm: 720 },
+                { id: 1, name: 'Player 2', hero: 'PA', team: 'radiant', kills: 15, deaths: 5, assists: 10, gpm: 580, xpm: 680 },
+                { id: 2, name: 'Player 3', hero: 'CM', team: 'radiant', kills: 2, deaths: 8, assists: 20, gpm: 320, xpm: 400 },
+                { id: 3, name: 'Player 4', hero: 'SF', team: 'dire', kills: 10, deaths: 8, assists: 12, gpm: 550, xpm: 650 },
+                { id: 4, name: 'Player 5', hero: 'LC', team: 'dire', kills: 8, deaths: 10, assists: 15, gpm: 480, xpm: 580 }
+            ],
+            stats: {
+                totalKills: '47',
+                totalDeaths: '34',
+                goldAdvantage: '+12,500',
+                xpAdvantage: '+15,200'
+            }
+        });
+
+    } catch (error) {
+        console.error('Error parsing replay:', error);
+        showNotification('Erreur lors du parsing du replay', 'error');
+        parsingStatus.style.display = 'none';
+        parseBtn.disabled = false;
+    }
+}
+
+// Simulate parsing (remove this when integrating real parser)
+function simulateParsing() {
+    return new Promise(resolve => {
+        setTimeout(resolve, 2000); // 2 second delay
+    });
+}
+
+// Display parse results
+function displayParseResults(data) {
+    // Map info
+    document.getElementById('mapInfo').innerHTML = `
+        <div class="result-item">
+            <div class="result-label">Durée</div>
+            <div class="result-value">${data.map.duration}</div>
+        </div>
+        <div class="result-item">
+            <div class="result-label">Mode</div>
+            <div class="result-value">${data.map.mode}</div>
+        </div>
+        <div class="result-item">
+            <div class="result-label">Vainqueur</div>
+            <div class="result-value">${data.map.winner}</div>
+        </div>
+    `;
+
+    // Players list
+    document.getElementById('playersList').innerHTML = data.players.map(player => `
+        <div class="player-card">
+            <div class="player-team ${player.team}"></div>
+            <div class="player-hero">${player.hero}</div>
+            <div class="player-info">
+                <div class="player-name">${escapeHtml(player.name)}</div>
+                <div class="player-stats">
+                    <div class="player-stat">
+                        <span class="player-stat-label">K/D/A:</span>
+                        <span class="player-stat-value">${player.kills}/${player.deaths}/${player.assists}</span>
+                    </div>
+                    <div class="player-stat">
+                        <span class="player-stat-label">GPM:</span>
+                        <span class="player-stat-value">${player.gpm}</span>
+                    </div>
+                    <div class="player-stat">
+                        <span class="player-stat-label">XPM:</span>
+                        <span class="player-stat-value">${player.xpm}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    // Stats info
+    document.getElementById('statsInfo').innerHTML = `
+        <div class="result-item">
+            <div class="result-label">Total Kills</div>
+            <div class="result-value">${data.stats.totalKills}</div>
+        </div>
+        <div class="result-item">
+            <div class="result-label">Total Deaths</div>
+            <div class="result-value">${data.stats.totalDeaths}</div>
+        </div>
+        <div class="result-item">
+            <div class="result-label">Gold Advantage</div>
+            <div class="result-value">${data.stats.goldAdvantage}</div>
+        </div>
+        <div class="result-item">
+            <div class="result-label">XP Advantage</div>
+            <div class="result-value">${data.stats.xpAdvantage}</div>
+        </div>
+    `;
+}
+
+// Setup modal event listeners
+modalClose.addEventListener('click', closeMatchModal);
+modalOverlay.addEventListener('click', closeMatchModal);
+parseBtn.addEventListener('click', parseReplay);
+
+// Handle Escape key to close modal
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && matchModal.style.display === 'flex') {
+        closeMatchModal();
+    }
+});
+
+// Handle Dota 2 folder scan button
+scanDotaBtn.addEventListener('click', () => {
+    showNotification('Scanner le dossier Dota 2 - Cette fonctionnalité nécessite un backend serveur pour accéder au système de fichiers', 'info', 5000);
+    // TODO: Implement server-side directory scanning
+    // This would require a Node.js/Python backend to scan:
+    // C:\\Program Files (x86)\\Steam\\steamapps\\common\\dota 2 beta\\game\\dota\\replays
+});
 
 // Show files section
 function showFilesSection() {

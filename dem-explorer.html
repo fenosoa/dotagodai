@@ -110,6 +110,74 @@
         </div>
     </div>
 
+    <!-- Match Details Modal -->
+    <div class="modal" id="matchModal" style="display: none;">
+        <div class="modal-overlay" id="modalOverlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">Détails du Replay</h2>
+                <button class="modal-close" id="modalClose">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body" id="modalBody">
+                <div class="match-info">
+                    <div class="info-item">
+                        <span class="info-label">Fichier:</span>
+                        <span class="info-value" id="matchFileName">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Taille:</span>
+                        <span class="info-value" id="matchFileSize">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Chemin:</span>
+                        <span class="info-value" id="matchFilePath">-</span>
+                    </div>
+                </div>
+
+                <div class="action-section">
+                    <button class="parse-btn" id="parseBtn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                        Parser le replay
+                    </button>
+                </div>
+
+                <div class="parsing-status" id="parsingStatus" style="display: none;">
+                    <div class="status-spinner"></div>
+                    <span class="status-text">Parsing en cours...</span>
+                </div>
+
+                <div class="parse-results" id="parseResults" style="display: none;">
+                    <h3 class="results-title">Résultats du Parsing</h3>
+
+                    <div class="results-section">
+                        <h4 class="section-title">Informations de la Map</h4>
+                        <div class="results-grid" id="mapInfo"></div>
+                    </div>
+
+                    <div class="results-section">
+                        <h4 class="section-title">Joueurs</h4>
+                        <div class="players-list" id="playersList"></div>
+                    </div>
+
+                    <div class="results-section">
+                        <h4 class="section-title">Statistiques</h4>
+                        <div class="results-grid" id="statsInfo"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="dem-explorer.js"></script>
 </body>
 
