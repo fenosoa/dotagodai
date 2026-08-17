@@ -458,12 +458,134 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Handle Dota 2 folder scan button
-scanDotaBtn.addEventListener('click', () => {
-    showNotification('Scanner le dossier Dota 2 - Cette fonctionnalité nécessite un backend serveur pour accéder au système de fichiers', 'info', 5000);
-    // TODO: Implement server-side directory scanning
-    // This would require a Node.js/Python backend to scan:
-    // C:\\Program Files (x86)\\Steam\\steamapps\\common\\dota 2 beta\\game\\dota\\replays
+scanDotaBtn.addEventListener('click', async () => {
+    try {
+        const response = await fetch('http://localhost:3000/api/scan-directory');
+        const data = await response.json();
+
+        if (response.ok && data.files) {
+            // Create file objects from scanned files
+            data.files.forEach(fileData => {
+                const fileObj = {
+                    id: generateId(),
+                    name: fileData.name,
+                    title: extractTitle(fileData.name),
+                    size: fileData.size,
+                    sizeFormatted: formatFileSize(fileData.size),
+                    date: fileData.modified,
+                    dateFormatted: formatDate(new Date(fileData.modified)),
+                    filePath: fileData.path, // Server file path
+                    isServerFile: true // Flag to distinguish from uploaded files
+                };
+
+                // Check if file already exists
+                const existingIndex = allFiles.findIndex(f => f.name === fileObj.name);
+                if (existingIndex === -1) {
+                    allFiles.push(fileObj);
+                } else {
+                    allFiles[existingIndex] = fileObj;
+                }
+            });
+
+            // Update display
+            filteredFiles = [...allFiles];
+            renderFiles();
+            showFilesSection();
+
+            showNotification(`${data.files.length} replay${data.files.length > 1 ? 's' : ''} trouvé${data.files.length > 1 ? 's' : ''} dans le dossier Dota 2`, 'success');
+        } else {
+            showNotification(data.error || 'Erreur lors du scan', 'error');
+        }
+    } catch (error) {
+        console.error('Error scanning directory:', error);
+        showNotification('Impossible de se connecter au serveur. Assurez-vous que le serveur Node.js est démarré (npm start)', 'error', 7000);
+    }
 });
+
+// Parse replay - Real implementation using backend
+async function parseReplay() {
+    if (!currentFile) return;
+
+    parseBtn.disabled = true;
+    parsingStatus.style.display = 'flex';
+    parseResults.style.display = 'none';
+
+    try {
+        // Get the file path (server file or uploaded file)
+        let filePath;
+
+        if (currentFile.isServerFile) {
+            // File from server directory scan
+            filePath = currentFile.filePath;
+        } else {
+            // Uploaded file - we need to show an error or handle differently
+            showNotification('Les fichiers uploadés ne peuvent pas être parsés directement. Utilisez le scanner de dossier pour accéder aux fichiers .dem.', 'error', 5000);
+            parsingStatus.style.display = 'none';
+            parseBtn.disabled = false;
+            return;
+        }
+
+        // Call backend API to parse
+        const response = await fetch('http://localhost:3000/api/parse-replay', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ filePath })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Parsing failed');
+        }
+
+        // Show results
+        parsingStatus.style.display = 'none';
+        parseResults.style.display = 'block';
+
+        // Display parsed data
+        const matchData = result.data;
+        displayParseResults({
+            map: {
+                duration: matchData.durationFormatted || '0:00',
+                mode: matchData.gameMode || 'Unknown',
+                winner: matchData.winner || 'Unknown',
+                matchId: matchData.matchId || 'Unknown'
+            },
+            players: matchData.players.map(p => ({
+                id: p.playerId,
+                name: p.playerName,
+                hero: p.heroName,
+                team: p.team,
+                kills: p.kills,
+                deaths: p.deaths,
+                assists: p.assists,
+                gpm: p.gpm,
+                xpm: p.xpm,
+                level: p.level,
+                lastHits: p.lastHits,
+                denies: p.denies
+            })),
+            stats: {
+                totalKills: String(matchData.totalKills || 0),
+                radiantKills: String(matchData.radiantKills || 0),
+                direKills: String(matchData.direKills || 0),
+                duration: matchData.durationFormatted || '0:00'
+            }
+        });
+
+        showNotification('Parsing terminé avec succès!', 'success');
+
+    } catch (error) {
+        console.error('Error parsing replay:', error);
+        showNotification(`Erreur lors du parsing: ${error.message}`, 'error');
+        parsingStatus.style.display = 'none';
+        parseBtn.disabled = false;
+    }
+}
+
+// Remove the old simulateParsing function as we don't need it anymore
 
 // Show files section
 function showFilesSection() {
