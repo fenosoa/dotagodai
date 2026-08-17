@@ -21,6 +21,7 @@ const statusOverlay = document.getElementById('statusOverlay');
 const statusText = document.getElementById('statusText');
 const playerPicker = document.getElementById('playerPicker');
 const playerList = document.getElementById('playerList');
+const backToPickerBtn = document.getElementById('backToPickerBtn');
 
 const mapImage = new Image();
 
@@ -30,6 +31,10 @@ let busy = false;
 let samples = [];
 let minT = 0;
 let maxT = 0;
+
+// Permet de revenir à la liste des joueurs du replay en cours
+let lastReplayPath = null;
+let lastPlayers = null;
 
 let isPlaying = false;
 let currentT = 0;
@@ -114,6 +119,9 @@ function readJsonFile(file) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
+      lastReplayPath = null;
+      lastPlayers = null;
+      backToPickerBtn.classList.add('hidden');
       loadSamplesFromData(data, file.name.replace(/\.json$/i, ''));
     } catch (err) {
       console.error('Error parsing JSON file:', err);
@@ -145,6 +153,10 @@ function escapeHtml(str) {
 function showPlayerPicker(players, replayPath) {
   clearStatus();
   dropOverlay.classList.add('hidden');
+  backToPickerBtn.classList.add('hidden');
+
+  lastReplayPath = replayPath;
+  lastPlayers = players;
 
   playerList.innerHTML = players
     .map(
@@ -226,6 +238,7 @@ async function runPathForPlayer(replayPath, player) {
 
     clearStatus();
     loadSamplesFromData(data.data, `${player.heroName} (${player.playerName})`);
+    if (lastPlayers) backToPickerBtn.classList.remove('hidden');
   } catch (err) {
     console.error('Error extracting path:', err);
     alert(`Erreur : ${err.message}`);
@@ -275,6 +288,13 @@ canvasWrapper.addEventListener('drop', (e) => {
 
 dropOverlay.addEventListener('click', () => {
   if (!busy) fileInput.click();
+});
+
+backToPickerBtn.addEventListener('click', () => {
+  if (busy || !lastPlayers) return;
+  isPlaying = false;
+  playPauseBtn.textContent = 'Play';
+  showPlayerPicker(lastPlayers, lastReplayPath);
 });
 
 fileInput.addEventListener('change', () => {

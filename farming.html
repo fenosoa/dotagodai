@@ -227,6 +227,10 @@
         min-width: 40px;
         text-align: center;
       }
+
+      #backToPickerBtn.hidden {
+        display: none;
+      }
     </style>
   </head>
 
@@ -256,6 +260,7 @@
     <input type="file" id="fileInput" accept="application/json,.json,.dem" aria-label="Choisir un fichier JSON ou un replay .dem" hidden />
 
     <div id="controls">
+      <button id="backToPickerBtn" class="hidden">Choix du joueur</button>
       <button id="playPauseBtn">Play</button>
 
       <input id="timeSlider" type="range" min="0" max="1" step="0.001" value="0" />
