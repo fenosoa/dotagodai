@@ -7,3 +7,4 @@
 /baselines
 .dem
 node_modules
+/.gradle-io

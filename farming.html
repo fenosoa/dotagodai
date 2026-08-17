@@ -29,8 +29,144 @@
       }
 
       canvas {
+        display: block;
         border: 1px solid #444;
         image-rendering: crisp-edges;
+      }
+
+      #canvasWrapper {
+        position: relative;
+        display: inline-block;
+      }
+
+      #dropOverlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.6);
+        border: 2px dashed #666;
+        color: #ccc;
+        font-size: 16px;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s, color 0.15s;
+      }
+
+      #dropOverlay span {
+        display: block;
+        margin-top: 4px;
+        font-size: 13px;
+        color: #999;
+      }
+
+      #dropOverlay.drag-over {
+        background: rgba(0, 255, 153, 0.15);
+        border-color: #00ff99;
+        color: #fff;
+      }
+
+      #dropOverlay.hidden {
+        display: none;
+      }
+
+      #statusOverlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.75);
+        color: #eee;
+        font-size: 16px;
+      }
+
+      #statusOverlay.hidden {
+        display: none;
+      }
+
+      .spinner {
+        width: 24px;
+        height: 24px;
+        margin: 0 auto 10px;
+        border: 3px solid #444;
+        border-top-color: #00ff99;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      #playerPicker {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        background: rgba(17, 17, 17, 0.95);
+        padding: 16px;
+        overflow-y: auto;
+      }
+
+      #playerPicker.hidden {
+        display: none;
+      }
+
+      #playerPickerHeader {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 10px;
+        text-align: center;
+      }
+
+      #playerList {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .player-card {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        background: #1c1c1c;
+        border: 1px solid #444;
+        border-left: 4px solid #888;
+        border-radius: 4px;
+        cursor: pointer;
+        text-align: left;
+        color: #eee;
+        font-size: 13px;
+      }
+
+      .player-card:hover {
+        background: #2a2a2a;
+        border-color: #666;
+      }
+
+      .player-card.radiant {
+        border-left-color: #66bb6a;
+      }
+
+      .player-card.dire {
+        border-left-color: #ef5350;
+      }
+
+      .player-card .player-hero {
+        font-weight: 600;
+      }
+
+      .player-card .player-name {
+        color: #999;
+        font-size: 12px;
       }
 
       #stats {
@@ -97,7 +233,27 @@
   <body>
     <h1 id="titleHeader">Path viewer</h1>
 
-    <canvas id="mapCanvas"></canvas>
+    <div id="canvasWrapper">
+      <canvas id="mapCanvas"></canvas>
+      <div id="dropOverlay">
+        <div>
+          Glissez-déposez un replay .dem ou un fichier .json ici
+          <span>ou cliquez pour parcourir</span>
+        </div>
+      </div>
+      <div id="statusOverlay" class="hidden">
+        <div>
+          <div class="spinner"></div>
+          <div id="statusText">Chargement...</div>
+        </div>
+      </div>
+      <div id="playerPicker" class="hidden">
+        <div id="playerPickerHeader">Choisissez un joueur</div>
+        <div id="playerList"></div>
+      </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="application/json,.json,.dem" aria-label="Choisir un fichier JSON ou un replay .dem" hidden />
 
     <div id="controls">
       <button id="playPauseBtn">Play</button>

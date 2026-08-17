@@ -14,7 +14,18 @@ const speedBtn = document.getElementById('speedBtn');
 const statsDiv = document.getElementById('stats');
 const titleHeader = document.getElementById('titleHeader');
 
+const canvasWrapper = document.getElementById('canvasWrapper');
+const dropOverlay = document.getElementById('dropOverlay');
+const fileInput = document.getElementById('fileInput');
+const statusOverlay = document.getElementById('statusOverlay');
+const statusText = document.getElementById('statusText');
+const playerPicker = document.getElementById('playerPicker');
+const playerList = document.getElementById('playerList');
+
 const mapImage = new Image();
+
+// true pendant qu'un upload / matchinfoRun / pathRun est en cours côté serveur
+let busy = false;
 
 let samples = [];
 let minT = 0;
@@ -62,37 +73,219 @@ function formatGameTime(t) {
   return `${sign}${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-// Map + fichier du path
+// Map
 mapImage.src = 'dota2_map.png';
 
-const pathFile = 'jug_ame.json';
-const fileNameForTitle = pathFile.replace(/\.json$/i, '');
-titleHeader.textContent = `Path viewer : ${fileNameForTitle}`;
-
 mapImage.onload = () => {
-  fetch(pathFile)
-    .then((res) => res.json())
-    .then((data) => {
-      samples = data;
-      if (!samples.length) return;
+  canvas.width = mapImage.width;
+  canvas.height = mapImage.height;
 
-      minT = samples[0].t;
-      maxT = samples[samples.length - 1].t;
-
-      canvas.width = mapImage.width;
-      canvas.height = mapImage.height;
-
-      currentT = minT;
-      timeSlider.value = 0;
-
-      updateSpeedLabel();
-      draw(currentT);
-      requestAnimationFrame(loop);
-    })
-    .catch((err) => {
-      console.error('Error loading path JSON:', err);
-    });
+  updateSpeedLabel();
+  draw(currentT);
+  requestAnimationFrame(loop);
 };
+
+// Chargement du path depuis un fichier JSON (drag & drop ou sélection manuelle)
+function loadSamplesFromData(data, label) {
+  if (!Array.isArray(data) || !data.length) {
+    alert('Fichier JSON invalide : tableau de samples vide ou mal formé.');
+    return;
+  }
+
+  samples = data;
+  minT = samples[0].t;
+  maxT = samples[samples.length - 1].t;
+
+  currentT = minT;
+  timeSlider.value = 0;
+  isPlaying = false;
+  playPauseBtn.textContent = 'Play';
+  lastFrameTime = null;
+  lastLhColor = '#ffeb3b';
+
+  titleHeader.textContent = `Path viewer : ${label}`;
+  dropOverlay.classList.add('hidden');
+
+  draw(currentT);
+}
+
+function readJsonFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      loadSamplesFromData(data, file.name.replace(/\.json$/i, ''));
+    } catch (err) {
+      console.error('Error parsing JSON file:', err);
+      alert('Impossible de lire ce fichier JSON.');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function setStatus(text) {
+  busy = true;
+  statusText.textContent = text;
+  statusOverlay.classList.remove('hidden');
+  dropOverlay.classList.add('hidden');
+  playerPicker.classList.add('hidden');
+}
+
+function clearStatus() {
+  busy = false;
+  statusOverlay.classList.add('hidden');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+function showPlayerPicker(players, replayPath) {
+  clearStatus();
+  dropOverlay.classList.add('hidden');
+
+  playerList.innerHTML = players
+    .map(
+      (p, i) => `
+        <button class="player-card ${p.team}" data-index="${i}">
+          <div>
+            <div class="player-hero">${escapeHtml(p.heroName)}</div>
+            <div class="player-name">${escapeHtml(p.playerName)}</div>
+          </div>
+        </button>
+      `
+    )
+    .join('');
+
+  playerList.querySelectorAll('.player-card').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const player = players[Number(btn.dataset.index)];
+      runPathForPlayer(replayPath, player);
+    });
+  });
+
+  playerPicker.classList.remove('hidden');
+}
+
+async function handleDemFile(file) {
+  if (busy) return;
+
+  try {
+    setStatus(`Upload de ${file.name}...`);
+
+    const formData = new FormData();
+    formData.append('replay', file);
+
+    const uploadRes = await fetch('/api/replays/upload', {
+      method: 'POST',
+      body: formData
+    });
+    const uploadData = await uploadRes.json();
+    if (!uploadRes.ok || !uploadData.success) {
+      throw new Error(uploadData.message || uploadData.error || 'Échec de l\'upload');
+    }
+
+    setStatus('Analyse du replay (matchinfo)...');
+
+    const matchRes = await fetch('/api/parse-replay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filePath: uploadData.path })
+    });
+    const matchData = await matchRes.json();
+    if (!matchRes.ok || !matchData.success) {
+      throw new Error(matchData.message || matchData.error || 'Échec de l\'analyse du replay');
+    }
+
+    showPlayerPicker(matchData.data.players, uploadData.path);
+  } catch (err) {
+    console.error('Error processing replay:', err);
+    alert(`Erreur : ${err.message}`);
+    clearStatus();
+    if (!samples.length) dropOverlay.classList.remove('hidden');
+  }
+}
+
+async function runPathForPlayer(replayPath, player) {
+  if (busy) return;
+
+  try {
+    setStatus(`Extraction du trajet de ${player.heroName}...`);
+
+    const res = await fetch('/api/path', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filePath: replayPath, playerId: player.playerId })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || data.error || 'Échec de l\'extraction du trajet');
+    }
+
+    clearStatus();
+    loadSamplesFromData(data.data, `${player.heroName} (${player.playerName})`);
+  } catch (err) {
+    console.error('Error extracting path:', err);
+    alert(`Erreur : ${err.message}`);
+    clearStatus();
+    playerPicker.classList.remove('hidden');
+  }
+}
+
+function handleDroppedFile(file) {
+  if (!file || busy) return;
+
+  if (/\.json$/i.test(file.name)) {
+    readJsonFile(file);
+  } else if (/\.dem$/i.test(file.name)) {
+    handleDemFile(file);
+  } else {
+    alert('Merci de déposer un fichier .json ou un replay .dem');
+  }
+}
+
+['dragenter', 'dragover'].forEach((evt) => {
+  canvasWrapper.addEventListener(evt, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
+    dropOverlay.classList.remove('hidden');
+    dropOverlay.classList.add('drag-over');
+  });
+});
+
+['dragleave', 'dragend'].forEach((evt) => {
+  canvasWrapper.addEventListener(evt, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropOverlay.classList.remove('drag-over');
+    if (samples.length) dropOverlay.classList.add('hidden');
+  });
+});
+
+canvasWrapper.addEventListener('drop', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  dropOverlay.classList.remove('drag-over');
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  handleDroppedFile(file);
+});
+
+dropOverlay.addEventListener('click', () => {
+  if (!busy) fileInput.click();
+});
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files && fileInput.files[0];
+  handleDroppedFile(file);
+  fileInput.value = '';
+});
+
+// Empêche le navigateur d'ouvrir le fichier si le drop rate la zone dédiée
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => e.preventDefault());
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));

@@ -55,6 +55,7 @@ public class Main {
     private Entity dataRadiant;
     private Entity dataDire;
     private Entity gameRules;
+    private Entity playerResource;
     private boolean matchEnded = false;
     private int lastTick = 0;
 
@@ -118,6 +119,8 @@ public class Main {
             dataDire = e;
         } else if ("CDOTAGamerulesProxy".equals(dtName)) {
             gameRules = e;
+        } else if ("CDOTA_PlayerResource".equals(dtName)) {
+            playerResource = e;
         } else if (dtName.startsWith("CDOTA_Unit_Hero_")) {
             String heroName = dtName.replace("CDOTA_Unit_Hero_", "").replace("_", " ");
             Integer pid = getIntProp(e, "m_iPlayerID");
@@ -125,11 +128,17 @@ public class Main {
             if (pid != null && pid >= 0 && pid < 24) {
                 PlayerInfo player = playerMap.computeIfAbsent(pid, k -> new PlayerInfo());
                 player.playerId = pid;
-                player.heroName = heroName;
 
-                // Determine team (Radiant = 0,1,2,3,4 / Dire = 5,6,7,8,9 in player slots)
-                // But m_iPlayerID can be different (0,2,4,6,8 for radiant, 10,12,14,16,18 for
-                // dire)
+                // Keep the *first* hero seen for this playerId. Illusions/clones
+                // (Terrorblade, Naga Siren, Manta Style, ...) are separate entities
+                // of the same CDOTA_Unit_Hero_* class created later in the match and
+                // would otherwise overwrite the player's real hero name.
+                if (player.heroName == null) {
+                    player.heroName = heroName;
+                }
+
+                // Rough fallback team guess in case CDOTA_PlayerResource (read
+                // authoritatively below, in extractFinalStats) isn't available.
                 if (pid <= 8) {
                     player.teamId = 2; // Radiant
                 } else {
@@ -150,6 +159,17 @@ public class Main {
                 matchEnded = true;
                 extractFinalStats();
             }
+        }
+    }
+
+    // Fallback for replays where m_nGameState never reaches POST_GAME while
+    // ticks are being processed (property naming/timing varies across game
+    // versions/recording conditions): compute stats from whatever state was
+    // last observed once the whole replay has been read.
+    public void finalizeIfNeeded() {
+        if (!matchEnded) {
+            matchEnded = true;
+            extractFinalStats();
         }
     }
 
@@ -175,84 +195,34 @@ public class Main {
             }
         }
 
-        // Extract player stats
-        for (int i = 0; i < 10; i++) {
-            Entity teamEntity;
-            int index;
-            int playerId;
+        // Build the roster from the real playerIds actually observed on hero
+        // entities -- don't assume a fixed m_iPlayerID numbering scheme (it
+        // varies: classic 0,2,4,6,8/10,12,14,16,18, or sequential 0-9 split by
+        // team). CDOTA_PlayerResource.m_vecPlayerData gives authoritative name +
+        // team for each, indexed directly by playerId.
+        List<Integer> playerIds = new ArrayList<>(playerMap.keySet());
+        Collections.sort(playerIds);
 
-            if (i < 5) {
-                teamEntity = dataRadiant;
-                index = i;
-                playerId = i * 2; // 0, 2, 4, 6, 8
-            } else {
-                teamEntity = dataDire;
-                index = i - 5;
-                playerId = 10 + (i - 5) * 2; // 10, 12, 14, 16, 18
-            }
+        for (int pid : playerIds) {
+            applyAuthoritativePlayerData(playerMap.get(pid), pid);
+        }
 
-            PlayerInfo player = playerMap.get(playerId);
-            if (player == null) {
-                player = new PlayerInfo();
-                player.playerId = playerId;
-                player.heroName = "Unknown";
-                player.teamId = i < 5 ? 2 : 3;
-                playerMap.put(playerId, player);
-            }
+        // Detailed per-match stats (kills/gold/...) live in a *team-relative*
+        // slot (0-4) on CDOTA_DataRadiant/CDOTA_DataDire -- a different indexing
+        // scheme from m_iPlayerID. Since we now know each player's team
+        // authoritatively, derive that slot by ranking players within their own
+        // team by playerId, rather than assuming a numbering convention.
+        List<Integer> radiantIds = new ArrayList<>();
+        List<Integer> direIds = new ArrayList<>();
+        for (int pid : playerIds) {
+            (playerMap.get(pid).teamId == 2 ? radiantIds : direIds).add(pid);
+        }
 
-            if (teamEntity != null) {
-                String prefix = String.format("m_vecDataTeam.%04d.", index);
+        applyTeamStats(dataRadiant, radiantIds);
+        applyTeamStats(dataDire, direIds);
 
-                player.playerName = getStringProp(teamEntity, prefix + "m_iszPlayerName");
-                if (player.playerName == null || player.playerName.isEmpty()) {
-                    player.playerName = "Player " + (i + 1);
-                }
-
-                player.kills = getIntProp(teamEntity, prefix + "m_iKills", prefix + "m_iHeroKills");
-                if (player.kills == null)
-                    player.kills = 0;
-
-                player.deaths = getIntProp(teamEntity, prefix + "m_iDeaths");
-                if (player.deaths == null)
-                    player.deaths = 0;
-
-                player.assists = getIntProp(teamEntity, prefix + "m_iAssists");
-                if (player.assists == null)
-                    player.assists = 0;
-
-                player.lastHits = getIntProp(teamEntity, prefix + "m_iLastHitCount");
-                if (player.lastHits == null)
-                    player.lastHits = 0;
-
-                player.denies = getIntProp(teamEntity, prefix + "m_iDenyCount", prefix + "m_iDenies");
-                if (player.denies == null)
-                    player.denies = 0;
-
-                // Calculate GPM and XPM
-                if (matchInfo.duration > 0) {
-                    Integer totalGold = getIntProp(teamEntity, prefix + "m_iTotalEarnedGold");
-                    if (totalGold != null) {
-                        player.gpm = (int) ((totalGold * 60.0f) / matchInfo.duration);
-                        player.goldTotal = totalGold;
-                    } else {
-                        player.gpm = 0;
-                        player.goldTotal = 0;
-                    }
-
-                    Integer totalXP = getIntProp(teamEntity, prefix + "m_iTotalEarnedXP");
-                    if (totalXP != null) {
-                        player.xpm = (int) ((totalXP * 60.0f) / matchInfo.duration);
-                    } else {
-                        player.xpm = 0;
-                    }
-                }
-
-                player.level = getIntProp(teamEntity, prefix + "m_iLevel");
-                if (player.level == null)
-                    player.level = 1;
-            }
-
-            matchInfo.players.add(player);
+        for (int pid : playerIds) {
+            matchInfo.players.add(playerMap.get(pid));
         }
 
         // Calculate total kills
@@ -267,6 +237,71 @@ public class Main {
                 .sum();
 
         matchInfo.totalKills = matchInfo.radiantKills + matchInfo.direKills;
+    }
+
+    // Reads per-match stats (kills/gold/...) for a team from its ordered player
+    // list -- position in the list (sorted by playerId) becomes the team-relative
+    // slot (0-4) used by CDOTA_DataRadiant/CDOTA_DataDire's m_vecDataTeam array.
+    private void applyTeamStats(Entity teamEntity, List<Integer> orderedPlayerIds) {
+        if (teamEntity == null) {
+            return;
+        }
+
+        for (int slot = 0; slot < orderedPlayerIds.size(); slot++) {
+            PlayerInfo player = playerMap.get(orderedPlayerIds.get(slot));
+            String prefix = String.format("m_vecDataTeam.%04d.", slot);
+
+            Integer kills = getIntProp(teamEntity, prefix + "m_iKills", prefix + "m_iHeroKills");
+            player.kills = kills != null ? kills : 0;
+
+            Integer deaths = getIntProp(teamEntity, prefix + "m_iDeaths");
+            player.deaths = deaths != null ? deaths : 0;
+
+            Integer assists = getIntProp(teamEntity, prefix + "m_iAssists");
+            player.assists = assists != null ? assists : 0;
+
+            Integer lastHits = getIntProp(teamEntity, prefix + "m_iLastHitCount");
+            player.lastHits = lastHits != null ? lastHits : 0;
+
+            Integer denies = getIntProp(teamEntity, prefix + "m_iDenyCount", prefix + "m_iDenies");
+            player.denies = denies != null ? denies : 0;
+
+            if (matchInfo.duration > 0) {
+                Integer totalGold = getIntProp(teamEntity, prefix + "m_iTotalEarnedGold");
+                player.goldTotal = totalGold != null ? totalGold : 0;
+                player.gpm = totalGold != null ? (int) ((totalGold * 60.0f) / matchInfo.duration) : 0;
+
+                Integer totalXP = getIntProp(teamEntity, prefix + "m_iTotalEarnedXP");
+                player.xpm = totalXP != null ? (int) ((totalXP * 60.0f) / matchInfo.duration) : 0;
+            }
+
+            Integer level = getIntProp(teamEntity, prefix + "m_iLevel");
+            player.level = level != null ? level : 1;
+        }
+    }
+
+    // Fills in identity fields (name, team, hero) from sources that are indexed
+    // directly by m_iPlayerID and don't depend on guessing which numbering
+    // convention a given replay uses: CDOTA_PlayerResource.m_vecPlayerData is
+    // always indexed 0-9 by player slot, matching m_iPlayerID on hero entities.
+    private void applyAuthoritativePlayerData(PlayerInfo player, int playerId) {
+        String prefix = String.format("m_vecPlayerData.%04d.", playerId);
+
+        String realName = getStringProp(playerResource, prefix + "m_iszPlayerName");
+        if (realName != null && !realName.isEmpty()) {
+            player.playerName = realName;
+        } else if (player.playerName == null) {
+            player.playerName = "Player " + (playerId + 1);
+        }
+
+        Integer team = getIntProp(playerResource, prefix + "m_iPlayerTeam");
+        if (team != null) {
+            player.teamId = team; // 2 = Radiant, 3 = Dire
+        }
+
+        if (player.heroName == null) {
+            player.heroName = "Unknown";
+        }
     }
 
     private String getGameModeName(int mode) {
@@ -366,6 +401,7 @@ public class Main {
         SimpleRunner runner = new SimpleRunner(source);
         runner.runWith(processor);
 
+        processor.finalizeIfNeeded();
         processor.writeJson();
     }
 }
