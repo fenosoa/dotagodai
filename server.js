@@ -43,7 +43,6 @@ const upload = multer({
             cb(null, `${Date.now()}_${safeName}`);
         }
     }),
-    limits: { fileSize: 300 * 1024 * 1024 }, // replays can be large
     fileFilter: (req, file, cb) => {
         if (!/\.dem$/i.test(file.originalname)) {
             return cb(new Error('Only .dem files are allowed'));
